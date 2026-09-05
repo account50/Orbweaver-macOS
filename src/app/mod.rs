@@ -39,8 +39,11 @@ struct App {
     delete_confirm: bool,
 }
 pub fn run() -> anyhow::Result<()> {
+    let icon =
+        eframe::icon_data::from_png_bytes(include_bytes!("../../assets/orbweaver-icon.png"))?;
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
+            .with_icon(icon)
             .with_inner_size([1180., 820.])
             .with_min_inner_size([1040., 740.]),
         ..Default::default()

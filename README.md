@@ -9,7 +9,9 @@ An independent native Rust configuration app for the **Razer Orbweaver (`1532:01
 open dist/Orbweaver.app
 ```
 
-You can move `dist/Orbweaver.app` into Applications. Running `cargo run --locked` also opens the GUI, but the app bundle provides a clearer identity in macOS permission settings.
+Install the built app with `ditto dist/Orbweaver.app /Applications/Orbweaver.app`, then open `/Applications/Orbweaver.app`. Quit any running copy before replacing it. Running `cargo run --locked` also opens the GUI, but the app bundle provides a clearer identity in macOS permission settings.
+
+The bundle includes its own Dock/Finder icon. Its source is `assets/orbweaver-icon.png`; run `./scripts/build-icon.sh` after changing that image to regenerate the macOS icon sizes.
 
 1. Select a profile and click any of the 20 keys, two thumb buttons, or eight thumb-pad directions.
 2. Assign a key/shortcut, a once-per-press sequence, a keymap switch, factory input, or no output. Eight keymaps are available per profile; switches can be momentary or stay selected.
