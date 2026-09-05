@@ -547,9 +547,11 @@ impl App {
             Action::Sequence { .. } => 2,
             Action::Layer { .. } => 3,
             Action::Disabled => 4,
+            Action::SpamKey { .. } => 5,
         };
         let before = kind;
         egui::ComboBox::from_id_salt("action-kind")
+            .height(300.)
             .selected_text(
                 [
                     "Factory key",
@@ -557,6 +559,7 @@ impl App {
                     "Sequence",
                     "Switch keymap",
                     "Disabled",
+                    "Spam Key",
                 ][kind],
             )
             .show_ui(ui, |ui| {
@@ -566,6 +569,7 @@ impl App {
                     "Sequence",
                     "Switch keymap",
                     "Disabled",
+                    "Spam Key",
                 ]
                 .iter()
                 .enumerate()
@@ -587,10 +591,33 @@ impl App {
                     momentary: true,
                 },
                 4 => Action::Disabled,
+                5 => Action::SpamKey {
+                    chord: "space".into(),
+                    interval_ms: 100,
+                },
                 _ => Action::Default,
             };
         }
         match &mut self.profile_mut().maps[map].bindings[i] {
+            Action::SpamKey { chord, interval_ms } => {
+                ui.label("Key to spam");
+                ui.text_edit_singleline(chord);
+                ui.label(
+                    RichText::new("Examples: 1, space, f5, shift+tab")
+                        .size(12.)
+                        .color(MUTED),
+                );
+                ui.add(
+                    egui::DragValue::new(interval_ms)
+                        .range(20..=5000)
+                        .suffix(" ms between presses"),
+                );
+                ui.label(
+                    RichText::new("Repeatedly presses and releases while held. Stops on release.")
+                        .size(12.)
+                        .color(MUTED),
+                );
+            }
             Action::Key { chord } => {
                 ui.text_edit_singleline(chord);
                 ui.label(

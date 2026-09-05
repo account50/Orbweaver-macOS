@@ -8,6 +8,12 @@ pub struct Output {
 struct Held {
     outputs: Vec<u16>,
     layer: bool,
+    spam: Option<Spam>,
+}
+struct Spam {
+    chord: Vec<u16>,
+    interval_ms: u64,
+    next_at: u64,
 }
 pub struct Engine {
     pub profile: Profile,
@@ -130,6 +136,7 @@ impl Engine {
             let mut held = Held {
                 outputs: vec![],
                 layer: false,
+                spam: None,
             };
             match action {
                 Action::Default => {
@@ -141,6 +148,15 @@ impl Engine {
                 }
                 Action::Key { chord } => {
                     held.outputs = parse_chord(&chord).unwrap_or_default();
+                }
+                Action::SpamKey { chord, interval_ms } => {
+                    if let Ok(chord) = parse_chord(&chord) {
+                        held.spam = Some(Spam {
+                            chord,
+                            interval_ms: interval_ms.clamp(20, 5000),
+                            next_at: now,
+                        });
+                    }
                 }
                 Action::Layer { map, momentary } => {
                     if momentary {
@@ -196,12 +212,174 @@ impl Engine {
             let (_, e) = self.queue.pop_front().unwrap();
             self.transition(e.code, e.pressed, &mut out);
         }
+        let due: Vec<_> = self
+            .held
+            .iter()
+            .filter(|(_, h)| h.spam.as_ref().is_some_and(|s| s.next_at <= now))
+            .map(|(i, _)| *i)
+            .collect();
+        for i in due {
+            let h = self.held.get_mut(&i).unwrap();
+            let spam = h.spam.as_mut().unwrap();
+            let hold_ms = spam.interval_ms.min(40) / 2;
+            // Advance one phase from actual delivery time; never replay missed taps in a burst.
+            let (codes, pressed) = if h.outputs.is_empty() {
+                if spam
+                    .chord
+                    .iter()
+                    .any(|c| self.counts.get(c).copied().unwrap_or(0) > 0)
+                {
+                    // Do not release or repeatedly press an output owned by another mapping.
+                    spam.next_at = now.saturating_add(spam.interval_ms);
+                    continue;
+                }
+                h.outputs = spam.chord.clone();
+                spam.next_at = now.saturating_add(hold_ms);
+                (h.outputs.clone(), true)
+            } else {
+                spam.next_at = now.saturating_add(spam.interval_ms - hold_ms);
+                (
+                    std::mem::take(&mut h.outputs).into_iter().rev().collect(),
+                    false,
+                )
+            };
+            for code in codes {
+                self.transition(code, pressed, &mut out);
+            }
+        }
         out
     }
 }
 #[cfg(test)]
 mod tests {
     use super::*;
+    fn spam_engine(chord: &str, interval_ms: u64) -> Engine {
+        let mut p = Profile::default();
+        p.maps[0].bindings[0] = Action::SpamKey {
+            chord: chord.into(),
+            interval_ms,
+        };
+        Engine::new(p)
+    }
+    fn key(code: u16, pressed: bool) -> Vec<Output> {
+        vec![Output { code, pressed }]
+    }
+    #[test]
+    fn spam_sends_separate_presses_and_releases_only_while_held() {
+        let mut e = spam_engine("a", 100);
+        assert_eq!(e.state(BTreeSet::from([53]), 0), key(0, true));
+        assert!(e.state(BTreeSet::from([53]), 5).is_empty());
+        assert!(e.tick(19).is_empty());
+        assert_eq!(e.tick(20), key(0, false));
+        assert!(e.tick(99).is_empty());
+        assert_eq!(e.tick(100), key(0, true));
+        assert_eq!(e.state(BTreeSet::new(), 105), key(0, false));
+        assert!(e.tick(10000).is_empty());
+        assert_eq!(e.state(BTreeSet::from([53]), 10001), key(0, true));
+    }
+    #[test]
+    fn spam_release_between_taps_cancels_next_press() {
+        let mut e = spam_engine("space", 100);
+        e.state(BTreeSet::from([53]), 0);
+        assert_eq!(e.tick(20), key(49, false));
+        assert!(e.state(BTreeSet::new(), 100).is_empty());
+        assert!(e.tick(1000).is_empty());
+    }
+    #[test]
+    fn spam_releases_shortcut_in_reverse_and_reset_cancels_it() {
+        let mut e = spam_engine("command+c", 100);
+        let down = vec![
+            Output {
+                code: 55,
+                pressed: true,
+            },
+            Output {
+                code: 8,
+                pressed: true,
+            },
+        ];
+        assert_eq!(e.state(BTreeSet::from([53]), 0), down);
+        assert_eq!(
+            e.tick(20),
+            vec![
+                Output {
+                    code: 8,
+                    pressed: false
+                },
+                Output {
+                    code: 55,
+                    pressed: false
+                }
+            ]
+        );
+        assert_eq!(e.tick(100), down);
+        assert_eq!(
+            e.reset(),
+            vec![
+                Output {
+                    code: 8,
+                    pressed: false
+                },
+                Output {
+                    code: 55,
+                    pressed: false
+                }
+            ]
+        );
+        assert!(e.tick(10000).is_empty());
+    }
+    #[test]
+    fn spam_late_ticks_do_not_catch_up_with_a_burst() {
+        let mut e = spam_engine("a", 100);
+        e.state(BTreeSet::from([53]), 0);
+        assert_eq!(e.tick(10000), key(0, false));
+        assert!(e.tick(10000).is_empty());
+        assert!(e.tick(10079).is_empty());
+        assert_eq!(e.tick(10080), key(0, true));
+        assert_eq!(e.tick(20000), key(0, false));
+    }
+    #[test]
+    fn spam_respects_slow_and_fast_intervals() {
+        for interval in [20, 5000] {
+            let mut e = spam_engine("a", interval);
+            assert_eq!(e.state(BTreeSet::from([53]), 0), key(0, true));
+            let up_at = interval.min(40) / 2;
+            assert_eq!(e.tick(up_at), key(0, false));
+            assert!(e.tick(interval - 1).is_empty());
+            assert_eq!(e.tick(interval), key(0, true));
+        }
+    }
+    #[test]
+    fn spam_does_not_release_another_mappings_held_output() {
+        let mut e = spam_engine("a", 100);
+        e.profile.maps[0].bindings[1] = Action::Key { chord: "a".into() };
+        assert_eq!(e.state(BTreeSet::from([53]), 0), key(0, true));
+        assert!(e.state(BTreeSet::from([53, 30]), 10).is_empty());
+        assert!(e.tick(20).is_empty());
+        assert!(e.tick(100).is_empty());
+        assert_eq!(e.state(BTreeSet::from([53]), 110), key(0, false));
+        assert_eq!(e.tick(200), key(0, true));
+        assert_eq!(e.state(BTreeSet::new(), 205), key(0, false));
+    }
+    #[test]
+    fn spam_held_on_a_layer_keeps_its_original_assignment() {
+        let mut e = Engine::new(Profile::default());
+        e.profile.maps[0].bindings[20] = Action::Layer {
+            map: 1,
+            momentary: true,
+        };
+        e.profile.maps[1].bindings[0] = Action::SpamKey {
+            chord: "a".into(),
+            interval_ms: 100,
+        };
+        e.state(BTreeSet::from([226]), 0);
+        assert_eq!(e.state(BTreeSet::from([226, 53]), 1), key(0, true));
+        assert!(e.state(BTreeSet::from([53]), 2).is_empty());
+        assert_eq!(e.map(), 0);
+        assert_eq!(e.tick(21), key(0, false));
+        assert_eq!(e.tick(101), key(0, true));
+        assert_eq!(e.state(BTreeSet::new(), 102), key(0, false));
+    }
     #[test]
     fn shared_wow_profile_has_identical_outputs_for_both_models() {
         for fixture in [

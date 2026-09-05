@@ -13,6 +13,10 @@ pub enum Action {
     Key {
         chord: String,
     },
+    SpamKey {
+        chord: String,
+        interval_ms: u64,
+    },
     Sequence {
         keys: String,
         interval_ms: u64,
@@ -28,6 +32,7 @@ impl Action {
         match self {
             Self::Default => "Default".into(),
             Self::Key { chord } => chord.clone(),
+            Self::SpamKey { chord, .. } => format!("Spam {chord}"),
             Self::Sequence { .. } => "Sequence".into(),
             Self::Layer { map, momentary } => format!(
                 "{} {}",
@@ -191,6 +196,13 @@ impl Profile {
             for action in &map.bindings {
                 match action {
                     Action::Key { chord } => {
+                        parse_chord(chord)?;
+                    }
+                    Action::SpamKey { chord, interval_ms } => {
+                        ensure!(
+                            (20..=5000).contains(interval_ms),
+                            "spam interval must be 20–5000 ms"
+                        );
                         parse_chord(chord)?;
                     }
                     Action::Sequence { keys, interval_ms } => {
@@ -379,6 +391,32 @@ pub fn atomic_save(p: &Path, bytes: &[u8]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn spam_profiles_roundtrip_and_reject_invalid_settings() {
+        let mut l = Library::default();
+        l.profiles[0].maps[0].bindings[0] = Action::SpamKey {
+            chord: "shift+1".into(),
+            interval_ms: 100,
+        };
+        l.validate().unwrap();
+        let json = serde_json::to_string(&l).unwrap();
+        assert!(json.contains("spam_key"));
+        assert_eq!(serde_json::from_str::<Library>(&json).unwrap(), l);
+        for (chord, interval_ms) in [
+            ("a", 0),
+            ("a", 19),
+            ("a", 5001),
+            ("", 100),
+            ("a,b", 100),
+            ("a+b", 100),
+        ] {
+            l.profiles[0].maps[0].bindings[0] = Action::SpamKey {
+                chord: chord.into(),
+                interval_ms,
+            };
+            assert!(l.validate().is_err(), "accepted {chord} at {interval_ms}");
+        }
+    }
     #[test]
     fn defaults_roundtrip() {
         let l = Library::default();

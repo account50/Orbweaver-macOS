@@ -14,6 +14,7 @@ It runs locally, without Razer Synapse, a Razer account, Karabiner, or a third-p
 
 - Configure 20 main keys, two thumb buttons, and eight thumb-pad directions.
 - Assign keys, modifier shortcuts, timed key sequences, keymap switches, factory input, or disabled output.
+- Use **Spam Key** to repeatedly press and release a key or shortcut while holding a control.
 - Use eight keymaps per profile, with momentary or persistent switching.
 - Create, rename, duplicate, import, export, and save profiles locally.
 - Share the same key mappings between original and Chroma Orbweavers.
@@ -67,13 +68,26 @@ The GUI runs as your normal user. A temporary helper needs administrator privile
 
 ### Keys and keymaps
 
-Choose a control in **Key mapping**, then select its assignment. For example, assign `command+c` for Copy, or use a sequence such as `command+c, command+v` with a delay between steps. Sequences run once per press; looping macros are not implemented.
+Choose a control in **Key mapping**, then select its assignment. For example, assign `command+c` for Copy, or use a sequence such as `command+c, command+v` with a delay between steps. Sequences run once per press; repeating a multi-step sequence is not implemented.
 
 Each profile contains eight keymaps. A keymap-switch assignment can stay on the selected map or return when you release the switch. Thumb-pad diagonals use their two cardinal directions by default; an explicit diagonal assignment takes precedence.
 
 If a control does not match the factory layout shown in the editor, start remapping, select **Learn from device**, and press and release that control. Learning suppresses its output. Click **Save & apply** to keep and activate your edits.
 
 Key names describe US physical key positions. The active macOS keyboard layout determines the characters those positions produce.
+
+### Spam Key: repeat taps while held
+
+**Spam Key** sends a fresh key-down and key-up pair for each tap, instead of leaving the output key held down. It works with either supported Orbweaver model and is saved with your profile.
+
+1. Select a control in **Key mapping**.
+2. Choose **Spam Key** from the **Assignment** menu.
+3. Enter **Key to spam**, such as `1`, `space`, `f5`, or `shift+tab`.
+4. Set the interval and click **Save & apply**. Start remapping if it is paused.
+
+Hold the physical control to repeat its assignment; release it to stop. The first tap starts immediately. The default interval is **100 ms**, or about 10 presses per second. You can choose **20–5000 ms**; lower values repeat faster. Timing is approximate and can slow under system load. Missed taps are skipped rather than replayed in a burst.
+
+Stopping remapping, entering input-learning mode, or applying a profile cancels repetition. If another mapping holds an output used by the spam assignment, it waits until that output is available so it does not release another control's held key. Releasing and pressing the physical control starts a new repetition cycle.
 
 ### Profiles
 
@@ -112,7 +126,7 @@ To switch units, stop remapping, unplug the first keypad, connect the replacemen
 
 ## Current limitations
 
-- No mouse, media-key, or joystick output; automatic application profiles; macro recording or looping; or full Synapse profile import.
+- No mouse, media-key, or joystick output; automatic application profiles; macro recording or looping multi-step sequences; or full Synapse profile import.
 - No launch-at-login option or automatic capture restart after disconnecting.
 - Original-model backlight control, reactive/ripple effects, and keymap indicator LEDs are not implemented.
 - Chroma lighting commands have returned valid hardware acknowledgments, but exact visible colors and every LED's placement still need full validation.
@@ -129,7 +143,7 @@ cargo test --locked
 cargo clippy --locked --all-targets -- -D warnings
 ```
 
-Automated tests cover profile validation, key and layer behavior, shared outputs, sequence cancellation, diagonals, recorded HID input, protocol checksums, and CLI errors. The lighting hardware test is ignored by default because it changes the connected device's lighting.
+Automated tests cover profile validation, key and layer behavior, shared outputs, sequence cancellation, diagonals, recorded HID input, protocol checksums, and CLI errors. Spam Key tests cover distinct down/up pairs, release cancellation, interval limits, shortcut ordering, layer changes, shared outputs, delayed ticks, and profile serialization. The lighting hardware test is ignored by default because it changes the connected device's lighting.
 
 The same executable also provides diagnostic commands:
 

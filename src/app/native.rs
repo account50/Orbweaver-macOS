@@ -51,6 +51,7 @@ impl Emitter {
             }
             let event = CGEvent::new_keyboard_event(self.source.clone(), e.code, e.pressed)
                 .map_err(|_| anyhow!("cannot create keyboard event"))?;
+            event.set_integer_value_field(EventField::KEYBOARD_EVENT_AUTOREPEAT, 0);
             event.set_flags(self.flags());
             event.post(CGEventTapLocation::Session);
         }
