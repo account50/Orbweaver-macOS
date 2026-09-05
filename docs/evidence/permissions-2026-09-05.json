@@ -1,0 +1,7 @@
+{
+  "guidance": "Shared monitoring uses Input Monitoring. Exclusive keyboard capture additionally requires root on macOS. Check Karabiner/device ownership separately. Grant only permissions actually denied in System Settings > Privacy & Security, then restart the launching process.",
+  "input_monitoring": "granted",
+  "post_event": "unknown",
+  "request_returned": null,
+  "running_as_root": false
+}

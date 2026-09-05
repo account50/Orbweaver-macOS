@@ -1,0 +1,6 @@
+{"details":{"exclusive":true,"product_id":519,"seconds":2,"started_unix_ms":1788633219657,"vendor_id":5426},"elapsed_ms":0,"event":"session","label":"control_trial","schema_version":1}
+{"details":{"interface":0,"layout":"boot_keyboard","path":"DevSrvsID:4300964092"},"elapsed_ms":16,"event":"connected","label":"control_trial","schema_version":1}
+{"details":{"interface":2,"layout":"pointer","path":"DevSrvsID:4300964093"},"elapsed_ms":27,"event":"connected","label":"control_trial","schema_version":1}
+{"details":{"interface":1,"layout":"extended_keyboard","path":"DevSrvsID:4300964094"},"elapsed_ms":38,"event":"connected","label":"control_trial","schema_version":1}
+{"details":{"interfaces":[0,2,1]},"elapsed_ms":38,"event":"capture_ready","label":"control_trial","schema_version":1}
+{"details":{"interfaces_with_access_errors":0,"opened_any":true,"reports":0,"stopped_by_signal":false},"elapsed_ms":2006,"event":"summary","label":"control_trial","schema_version":1}

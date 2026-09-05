@@ -1,0 +1,13 @@
+{
+  "app": "dist/Orbweaver.app",
+  "binary_bytes": 7836000,
+  "signature": "Executable=/Users/josh/LocalDocs/SoftwareDevelopment/Personal/Orbweaver2.0/dist/Orbweaver.app/Contents/MacOS/orbweaver",
+  "automated_tests_passed": 18,
+  "explicit_lighting_hardware_test": "all six modes and brightness acknowledged",
+  "helper_lifecycle": "socket close and heartbeat timeout verified on real device",
+  "gui_profile_save_reload": "verified, user-edited RGB and brightness preserved",
+  "permissions_diagnosis": "TCC log shows SecStaticCodeCheckValidity status -67050 against an older ad-hoc cdhash despite enabled settings toggles",
+  "visual_led_acceptance": "pending: user reported different solid color",
+  "mapped_output_acceptance": "pending permission entry refresh and physical test",
+  "permissions_resolution": "Removed stale entries using System Settings; current app requested access again. Accessibility then validated the current cdhash, and a fresh GUI process successfully read firmware 1.2."
+}

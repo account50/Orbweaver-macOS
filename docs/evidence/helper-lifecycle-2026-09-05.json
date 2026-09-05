@@ -1,0 +1,16 @@
+[
+  {
+    "scenario": "socket_close",
+    "ready": true,
+    "elapsed_seconds": 0.005,
+    "exit_code": 0,
+    "stderr": ""
+  },
+  {
+    "scenario": "heartbeat_timeout",
+    "ready": true,
+    "elapsed_seconds": 3.006,
+    "exit_code": 1,
+    "stderr": "Error: GUI heartbeat expired; releasing keypad"
+  }
+]
