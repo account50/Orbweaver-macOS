@@ -8,7 +8,7 @@ The user explicitly requires independence from Karabiner: no configuration integ
 
 ## Product boundary
 
-Support the observed original `1532:0113` and Chroma `1532:0207` on Apple Silicon macOS, one connected unit at a time. Build a reusable Rust input/action engine and a macOS adapter; add other platforms after this device works reliably. Keep configurations local, versioned, and exportable. No Razer account or online service should be required.
+Support the observed original `1532:0113` and Chroma `1532:0207` on Apple Silicon macOS, one connected unit at a time. October 13, 2026: the Tartarus V2 `1532:022b` was added as a second layout family; see [its research notes](tartarus-v2-research.md). Build a reusable Rust input/action engine and a macOS adapter; add other platforms after this device works reliably. Keep configurations local, versioned, and exportable. No Razer account or online service should be required.
 
 Separate physical identity from emitted keys: use internal control IDs `key_01` through `key_20`, `thumb_upper`, `thumb_lower`, and eight named directions. Populate their HID mappings by measurement. Do not assume diagonals produce independent reports; derive logical directions from observed contact combinations when necessary.
 

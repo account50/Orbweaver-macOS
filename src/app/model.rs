@@ -83,25 +83,77 @@ pub struct Lighting {
     pub brightness: u8,
     pub reverse: bool,
 }
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Profile {
-    pub name: String,
-    pub controls: Vec<Control>,
-    pub maps: Vec<Keymap>,
-    pub lighting: Lighting,
+/// Physical layout a profile is built for. Profiles written before this field existed are Orbweaver profiles.
+#[derive(Clone, Copy, Debug, Serialize, Deserialize, PartialEq, Eq, Default)]
+#[serde(rename_all = "snake_case")]
+pub enum Family {
+    #[default]
+    Orbweaver,
+    TartarusV2,
 }
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
-pub struct Library {
-    pub schema_version: u32,
-    pub selected: usize,
-    pub profiles: Vec<Profile>,
-}
-impl Default for Profile {
-    fn default() -> Self {
-        let input = [
-            53, 30, 31, 32, 33, 43, 20, 26, 8, 21, 57, 4, 22, 7, 9, 225, 29, 27, 6, 25,
-        ];
-        let mut controls: Vec<_> = input
+impl Family {
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Orbweaver => "Orbweaver",
+            Self::TartarusV2 => "Tartarus V2",
+        }
+    }
+    pub fn control_count(self) -> usize {
+        match self {
+            Self::Orbweaver => 30,
+            Self::TartarusV2 => 29,
+        }
+    }
+    /// RGB slots in `Lighting::colors`. Tartarus V2: keys 01–19, key 20, then the scroll wheel.
+    pub fn led_count(self) -> usize {
+        match self {
+            Self::Orbweaver => 20,
+            Self::TartarusV2 => 21,
+        }
+    }
+    /// Color slot for a control, if that control has its own key LED.
+    pub fn led_for_control(self, control: usize) -> Option<usize> {
+        (control < 20).then_some(control)
+    }
+    /// Color slot of the scroll-wheel LED, which is not a remappable control.
+    pub fn wheel_led(self) -> Option<usize> {
+        match self {
+            Self::Orbweaver => None,
+            Self::TartarusV2 => Some(20),
+        }
+    }
+    /// Index of the first thumb-pad direction ("N"); the eight directions follow in order.
+    pub fn thumb_pad_first(self) -> usize {
+        match self {
+            Self::Orbweaver => 22,
+            Self::TartarusV2 => 21,
+        }
+    }
+    pub fn export_file_name(self) -> &'static str {
+        match self {
+            Self::Orbweaver => "orbweaver-profile.json",
+            Self::TartarusV2 => "tartarus-v2-profile.json",
+        }
+    }
+    /// Factory key usages per control. Names describe the printed key labels.
+    pub fn default_controls(self) -> Vec<Control> {
+        let (keys, named): (&[u16], &[(&str, &[u16])]) = match self {
+            Self::Orbweaver => (
+                &[
+                    53, 30, 31, 32, 33, 43, 20, 26, 8, 21, 57, 4, 22, 7, 9, 225, 29, 27, 6, 25,
+                ],
+                &[("Thumb", &[226]), ("Space", &[44])],
+            ),
+            // Tartarus V2 factory layout: 1–5, Tab Q W E R, Caps A S D F, Shift Z X C,
+            // key 20 (thumb paddle) Space, thumb button Alt, thumb pad arrows.
+            Self::TartarusV2 => (
+                &[
+                    30, 31, 32, 33, 34, 43, 20, 26, 8, 21, 57, 4, 22, 7, 9, 225, 29, 27, 6,
+                ],
+                &[("20", &[44]), ("Thumb", &[226])],
+            ),
+        };
+        let mut controls: Vec<_> = keys
             .iter()
             .enumerate()
             .map(|(i, k)| Control {
@@ -109,10 +161,12 @@ impl Default for Profile {
                 inputs: vec![*k],
             })
             .collect();
+        controls.extend(named.iter().map(|(n, inputs)| Control {
+            name: (*n).into(),
+            inputs: inputs.to_vec(),
+        }));
         controls.extend(
             [
-                ("Thumb", vec![226]),
-                ("Space", vec![44]),
                 ("N", vec![82]),
                 ("NE", vec![82, 79]),
                 ("E", vec![79]),
@@ -128,23 +182,65 @@ impl Default for Profile {
                 inputs,
             }),
         );
+        debug_assert_eq!(controls.len(), self.control_count());
+        controls
+    }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Profile {
+    pub name: String,
+    #[serde(default)]
+    pub family: Family,
+    pub controls: Vec<Control>,
+    pub maps: Vec<Keymap>,
+    pub lighting: Lighting,
+}
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct Library {
+    pub schema_version: u32,
+    pub selected: usize,
+    pub profiles: Vec<Profile>,
+}
+impl Default for Profile {
+    fn default() -> Self {
+        Self::new(Family::Orbweaver)
+    }
+}
+impl Profile {
+    /// Factory layout for one keypad family with every control at its default.
+    pub fn new(family: Family) -> Self {
         Self {
             name: "Everyday".into(),
-            controls,
+            family,
+            controls: family.default_controls(),
             maps: (0..8)
                 .map(|i| Keymap {
                     name: format!("Keymap {}", i + 1),
-                    bindings: vec![Action::Default; 30],
+                    bindings: vec![Action::Default; family.control_count()],
                 })
                 .collect(),
             lighting: Lighting {
                 effect: Effect::Static,
                 color: [66, 224, 176],
-                colors: vec![[66, 224, 176]; 20],
+                colors: vec![[66, 224, 176]; family.led_count()],
                 brightness: 80,
                 reverse: false,
             },
         }
+    }
+}
+impl Lighting {
+    /// Lighting usable on `family`. Per-key colors from another layout fall back to the solid color.
+    pub fn adapted(&self, family: Family) -> (Self, bool) {
+        if self.colors.len() == family.led_count() {
+            return (self.clone(), false);
+        }
+        let mut l = self.clone();
+        l.colors = vec![self.color; family.led_count()];
+        if l.effect == Effect::PerKey {
+            l.effect = Effect::Static;
+        }
+        (l, true)
     }
 }
 impl Default for Library {
@@ -177,9 +273,13 @@ impl Profile {
             !self.name.trim().is_empty() && self.name.len() <= 120,
             "profile needs a name (up to 120 bytes)"
         );
+        let (controls, leds) = (self.family.control_count(), self.family.led_count());
         ensure!(
-            self.controls.len() == 30 && self.maps.len() == 8 && self.lighting.colors.len() == 20,
-            "profile must contain 30 controls, 8 maps, and 20 LED colors"
+            self.controls.len() == controls
+                && self.maps.len() == 8
+                && self.lighting.colors.len() == leds,
+            "{} profile must contain {controls} controls, 8 maps, and {leds} LED colors",
+            self.family.name()
         );
         ensure!(self.lighting.brightness <= 100, "brightness must be 0–100");
         for c in &self.controls {
@@ -192,7 +292,10 @@ impl Profile {
             );
         }
         for map in &self.maps {
-            ensure!(map.bindings.len() == 30, "keymap must contain 30 bindings");
+            ensure!(
+                map.bindings.len() == controls,
+                "keymap must contain {controls} bindings"
+            );
             for action in &map.bindings {
                 match action {
                     Action::Key { chord } => {
@@ -425,6 +528,85 @@ mod tests {
             serde_json::from_slice::<Library>(&serde_json::to_vec(&l).unwrap()).unwrap(),
             l
         );
+    }
+    #[test]
+    fn tartarus_v2_profiles_validate_and_roundtrip() {
+        let p = Profile::new(Family::TartarusV2);
+        p.validate().unwrap();
+        assert_eq!(p.controls.len(), 29);
+        assert_eq!(p.lighting.colors.len(), 21);
+        assert_eq!(p.controls[0].inputs, vec![30]);
+        assert_eq!(p.controls[18].inputs, vec![6]);
+        assert_eq!(
+            (p.controls[19].name.as_str(), &p.controls[19].inputs[..]),
+            ("20", &[44][..])
+        );
+        assert_eq!(p.controls[20].inputs, vec![226]);
+        assert_eq!(p.controls[Family::TartarusV2.thumb_pad_first()].name, "N");
+        assert_eq!(p.controls[28].name, "NW");
+        assert!(p.maps.iter().all(|m| m.bindings.len() == 29));
+        let json = serde_json::to_string(&p).unwrap();
+        assert!(json.contains("\"family\":\"tartarus_v2\""));
+        assert_eq!(serde_json::from_str::<Profile>(&json).unwrap(), p);
+        // A Tartarus profile cannot borrow the Orbweaver control table, and vice versa.
+        let mut wrong = p.clone();
+        wrong.family = Family::Orbweaver;
+        assert!(wrong.validate().is_err());
+        let wrong = Profile {
+            family: Family::TartarusV2,
+            ..Profile::default()
+        };
+        assert!(wrong.validate().is_err());
+    }
+    #[test]
+    fn profiles_without_family_are_orbweaver() {
+        let wow: Profile =
+            serde_json::from_str(include_str!("../../profiles/world-of-warcraft.json")).unwrap();
+        assert_eq!(wow.family, Family::Orbweaver);
+        wow.validate().unwrap();
+        let mut json: serde_json::Value = serde_json::to_value(Profile::default()).unwrap();
+        json.as_object_mut().unwrap().remove("family");
+        let p: Profile = serde_json::from_value(json).unwrap();
+        assert_eq!(p, Profile::default());
+    }
+    #[test]
+    fn bundled_tartarus_wow_profile_mirrors_the_orbweaver_one() {
+        let orb: Profile =
+            serde_json::from_str(include_str!("../../profiles/world-of-warcraft.json")).unwrap();
+        let tart: Profile = serde_json::from_str(include_str!(
+            "../../profiles/world-of-warcraft-tartarus-v2.json"
+        ))
+        .unwrap();
+        tart.validate().unwrap();
+        assert_eq!(tart.family, Family::TartarusV2);
+        assert_eq!(tart.controls, Family::TartarusV2.default_controls());
+        for map in 0..8 {
+            let (o, t) = (&orb.maps[map].bindings, &tart.maps[map].bindings);
+            // Keys 01–19 keep their numbers.
+            assert_eq!(&o[..19], &t[..19]);
+            // Orbweaver key 20 moves to the thumb button; the lower Space thumb becomes key 20.
+            assert_eq!(o[19], t[20]);
+            assert_eq!(o[21], t[19]);
+            assert_eq!(&o[22..30], &t[21..29]);
+            assert_eq!(o[20], Action::Default);
+        }
+        assert_eq!(tart.lighting.colors[..20], orb.lighting.colors[..20]);
+        assert_eq!(tart.lighting.colors[20], orb.lighting.colors[0]);
+    }
+    #[test]
+    fn lighting_adapts_between_layouts() {
+        let mut l = Profile::default().lighting;
+        l.effect = Effect::PerKey;
+        l.colors[3] = [1, 2, 3];
+        let (same, changed) = l.adapted(Family::Orbweaver);
+        assert!(!changed);
+        assert_eq!(same, l);
+        let (other, changed) = l.adapted(Family::TartarusV2);
+        assert!(changed);
+        assert_eq!(other.effect, Effect::Static);
+        assert_eq!(other.colors, vec![l.color; 21]);
+        l.effect = Effect::Wave;
+        assert_eq!(l.adapted(Family::TartarusV2).0.effect, Effect::Wave);
     }
     #[test]
     fn bad_profiles_rejected() {

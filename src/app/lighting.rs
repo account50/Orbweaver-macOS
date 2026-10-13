@@ -39,7 +39,8 @@ impl Worker {
                                     model.product_id()
                                 ),
                                 Request::Apply(_) => {
-                                    "Mappings ready. RGB settings retained for your Chroma.".into()
+                                    "Mappings ready. RGB settings are kept for an RGB keypad."
+                                        .into()
                                 }
                             },
                         ));
@@ -48,12 +49,25 @@ impl Worker {
                     let handle = info.open_device(&api)?;
                     let message = match &request {
                         Request::Inspect => {
-                            let f = crate::protocol::query_firmware(&handle)?;
+                            let f = crate::protocol::query_firmware_for(&handle, model)?;
                             format!("{} · Firmware {}.{}", model.name(), f.major, f.minor)
                         }
                         Request::Apply(l) => {
-                            crate::protocol::apply_lighting(&handle, l)?;
-                            "Lighting acknowledged by the Orbweaver. Profile is ready.".into()
+                            // A profile made for the other layout still lights the keypad,
+                            // but its per-key colors cannot be placed.
+                            let (lighting, adapted) = l.adapted(model.family());
+                            crate::protocol::apply_lighting(&handle, model, &lighting)?;
+                            if adapted {
+                                format!(
+                                    "Lighting acknowledged by the {}. This profile's per-key colors belong to another layout, so the solid color was used.",
+                                    model.name()
+                                )
+                            } else {
+                                format!(
+                                    "Lighting acknowledged by the {}. Profile is ready.",
+                                    model.name()
+                                )
+                            }
                         }
                     };
                     Ok((model, message))

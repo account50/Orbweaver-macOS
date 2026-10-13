@@ -22,7 +22,12 @@ pub fn layout(descriptor: &[u8]) -> Layout {
         "05010906a1018501050719e029e71500250175019508810219002aff00150026ff007508950e8100c0050c0901a101850219002a3c021500263c029501751081007508950d8101c005010980a10185031981298315002501750195038102950581017508950e8101c005010900a10185040903150026ff00350046ff007508950f8100c005010900a10185050903150026ff00350046ff007508950f8100c0" => {
             Layout::ExtendedKeyboard
         }
+        // Orbweaver and Orbweaver Chroma: three buttons, vendor bytes, wheel, X/Y, 90-byte feature report.
         "05010902a1010901a100050919012903150025019503750181027501950581030600ff0940950275081581257f8102050109381581257f7508950181060930093116008026ff7f751095028106c00600ff0902150025017508955ab101c0" => {
+            Layout::Pointer
+        }
+        // Tartarus V2: same 8-byte report with five button bits; same 90-byte feature report.
+        "05010902a1010901a100050919012905150025017501950581027501950381030600ff0940750895021581257f8102050109381581257f7508950181060930093116008026ff7f751095028106c00600ff0902150025017508955ab101c0" => {
             Layout::Pointer
         }
         _ => Layout::Unknown,
@@ -77,11 +82,12 @@ impl Decoder {
                 }
             }
             Layout::Pointer => {
+                // Button bits only; wheel and X/Y are relative and stay raw in recordings.
                 ensure!(bytes.len() == 8, "pointer report must be 8 bytes");
                 (
                     0,
                     9,
-                    (0..3)
+                    (0..8)
                         .filter(|i| bytes[0] & (1 << i) != 0)
                         .map(|i| i + 1)
                         .collect(),
@@ -159,6 +165,70 @@ mod tests {
             assert_eq!(a["layout"], b["layout"]);
             assert_ne!(a["layout"], "unknown");
         }
+    }
+    #[test]
+    fn tartarus_v2_uses_the_orbweaver_keyboard_layouts_and_a_five_button_pointer() {
+        let capture: serde_json::Value = serde_json::from_str(include_str!(
+            "../docs/evidence/tartarus-v2-ioreg-2026-10-13.json"
+        ))
+        .unwrap();
+        assert_eq!(capture["vendor_id"], 0x1532);
+        assert_eq!(capture["product_id"], 0x022b);
+        let chroma: serde_json::Value =
+            serde_json::from_str(include_str!("../docs/evidence/cli-inspect-2026-09-05.json"))
+                .unwrap();
+        let devices = capture["hid_devices"].as_array().unwrap();
+        assert_eq!(devices.len(), 3);
+        for d in devices {
+            let hex = d["report_descriptor"].as_str().unwrap();
+            let bytes: Vec<u8> = (0..hex.len())
+                .step_by(2)
+                .map(|i| u8::from_str_radix(&hex[i..i + 2], 16).unwrap())
+                .collect();
+            let number = d["interface_number"].as_u64().unwrap();
+            let expected = match number {
+                0 => Layout::BootKeyboard,
+                1 => Layout::ExtendedKeyboard,
+                _ => Layout::Pointer,
+            };
+            assert_eq!(layout(&bytes), expected, "interface {number}");
+            let sizes = crate::descriptor::sizes(&bytes).unwrap();
+            let orbweaver = chroma
+                .as_array()
+                .unwrap()
+                .iter()
+                .find(|c| c["interface_number"] == number)
+                .unwrap();
+            if number < 2 {
+                // Keyboard interfaces are byte-for-byte the Orbweaver descriptors.
+                assert_eq!(orbweaver["descriptor_hex"], hex);
+            } else {
+                assert_ne!(orbweaver["descriptor_hex"], hex);
+                assert_eq!(sizes[0].input_bytes, 8);
+                assert_eq!(sizes[0].feature_bytes, 90);
+            }
+        }
+    }
+    #[test]
+    fn pointer_decodes_all_button_bits() {
+        let mut d = Decoder::default();
+        let pressed = d
+            .decode(Layout::Pointer, &[0b1_0001, 0, 0, 0, 0, 0, 0, 0])
+            .unwrap();
+        assert_eq!(
+            pressed.iter().map(|t| t.usage).collect::<Vec<_>>(),
+            vec![1, 5]
+        );
+        assert!(pressed.iter().all(|t| t.usage_page == 9 && t.pressed));
+        // Wheel movement alone is not a button transition.
+        assert!(
+            d.decode(Layout::Pointer, &[0b1_0001, 0, 0, 0xff, 0, 0, 0, 0])
+                .unwrap()
+                .is_empty()
+        );
+        let released = d.decode(Layout::Pointer, &[0; 8]).unwrap();
+        assert_eq!(released.len(), 2);
+        assert!(released.iter().all(|t| !t.pressed));
     }
     #[test]
     fn replays_live_orbweaver_trace_without_stuck_keys() {

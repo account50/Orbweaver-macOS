@@ -1,0 +1,1054 @@
+{
+  "name": "World of Warcraft (Tartarus V2)",
+  "family": "tartarus_v2",
+  "controls": [
+    {
+      "name": "01",
+      "inputs": [
+        30
+      ]
+    },
+    {
+      "name": "02",
+      "inputs": [
+        31
+      ]
+    },
+    {
+      "name": "03",
+      "inputs": [
+        32
+      ]
+    },
+    {
+      "name": "04",
+      "inputs": [
+        33
+      ]
+    },
+    {
+      "name": "05",
+      "inputs": [
+        34
+      ]
+    },
+    {
+      "name": "06",
+      "inputs": [
+        43
+      ]
+    },
+    {
+      "name": "07",
+      "inputs": [
+        20
+      ]
+    },
+    {
+      "name": "08",
+      "inputs": [
+        26
+      ]
+    },
+    {
+      "name": "09",
+      "inputs": [
+        8
+      ]
+    },
+    {
+      "name": "10",
+      "inputs": [
+        21
+      ]
+    },
+    {
+      "name": "11",
+      "inputs": [
+        57
+      ]
+    },
+    {
+      "name": "12",
+      "inputs": [
+        4
+      ]
+    },
+    {
+      "name": "13",
+      "inputs": [
+        22
+      ]
+    },
+    {
+      "name": "14",
+      "inputs": [
+        7
+      ]
+    },
+    {
+      "name": "15",
+      "inputs": [
+        9
+      ]
+    },
+    {
+      "name": "16",
+      "inputs": [
+        225
+      ]
+    },
+    {
+      "name": "17",
+      "inputs": [
+        29
+      ]
+    },
+    {
+      "name": "18",
+      "inputs": [
+        27
+      ]
+    },
+    {
+      "name": "19",
+      "inputs": [
+        6
+      ]
+    },
+    {
+      "name": "20",
+      "inputs": [
+        44
+      ]
+    },
+    {
+      "name": "Thumb",
+      "inputs": [
+        226
+      ]
+    },
+    {
+      "name": "N",
+      "inputs": [
+        82
+      ]
+    },
+    {
+      "name": "NE",
+      "inputs": [
+        82,
+        79
+      ]
+    },
+    {
+      "name": "E",
+      "inputs": [
+        79
+      ]
+    },
+    {
+      "name": "SE",
+      "inputs": [
+        81,
+        79
+      ]
+    },
+    {
+      "name": "S",
+      "inputs": [
+        81
+      ]
+    },
+    {
+      "name": "SW",
+      "inputs": [
+        81,
+        80
+      ]
+    },
+    {
+      "name": "W",
+      "inputs": [
+        80
+      ]
+    },
+    {
+      "name": "NW",
+      "inputs": [
+        82,
+        80
+      ]
+    }
+  ],
+  "maps": [
+    {
+      "name": "Keymap 1",
+      "bindings": [
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "key",
+          "chord": "1"
+        },
+        {
+          "type": "key",
+          "chord": "2"
+        },
+        {
+          "type": "key",
+          "chord": "3"
+        },
+        {
+          "type": "key",
+          "chord": "4"
+        },
+        {
+          "type": "key",
+          "chord": "5"
+        },
+        {
+          "type": "key",
+          "chord": "6"
+        },
+        {
+          "type": "key",
+          "chord": "7"
+        },
+        {
+          "type": "key",
+          "chord": "8"
+        },
+        {
+          "type": "key",
+          "chord": "9"
+        },
+        {
+          "type": "key",
+          "chord": "0"
+        },
+        {
+          "type": "key",
+          "chord": "minus"
+        },
+        {
+          "type": "key",
+          "chord": "equal"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "key",
+          "chord": "a"
+        },
+        {
+          "type": "key",
+          "chord": "shift"
+        },
+        {
+          "type": "key",
+          "chord": "space"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        }
+      ]
+    },
+    {
+      "name": "Keymap 2",
+      "bindings": [
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        }
+      ]
+    },
+    {
+      "name": "Keymap 3",
+      "bindings": [
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        }
+      ]
+    },
+    {
+      "name": "Keymap 4",
+      "bindings": [
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        }
+      ]
+    },
+    {
+      "name": "Keymap 5",
+      "bindings": [
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        }
+      ]
+    },
+    {
+      "name": "Keymap 6",
+      "bindings": [
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        }
+      ]
+    },
+    {
+      "name": "Keymap 7",
+      "bindings": [
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        }
+      ]
+    },
+    {
+      "name": "Keymap 8",
+      "bindings": [
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        },
+        {
+          "type": "default"
+        }
+      ]
+    }
+  ],
+  "lighting": {
+    "effect": "per_key",
+    "color": [
+      145,
+      0,
+      0
+    ],
+    "colors": [
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        145,
+        0,
+        32
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ],
+      [
+        0,
+        145,
+        138
+      ]
+    ],
+    "brightness": 80,
+    "reverse": false
+  }
+}

@@ -2,7 +2,7 @@
 name = "orbweaver"
 version = "0.1.0"
 edition = "2024"
-description = "Independent native configuration for Razer Orbweaver and Orbweaver Chroma"
+description = "Independent native configuration for Razer Orbweaver, Orbweaver Chroma, and Tartarus V2"
 repository = "https://github.com/account50/Orbweaver-macOS"
 publish = false
 

@@ -4,7 +4,7 @@ pub mod model;
 mod native;
 pub mod session;
 use eframe::egui::{self, Color32, RichText, Vec2};
-use model::{Action, Effect, Library, Profile};
+use model::{Action, Effect, Family, Library, Profile};
 use std::{
     collections::BTreeSet,
     time::{Duration, Instant},
@@ -37,6 +37,8 @@ struct App {
     learning: Option<usize>,
     test_text: String,
     delete_confirm: bool,
+    /// Lighting page: the Tartarus V2 scroll-wheel LED is selected instead of a control.
+    wheel_selected: bool,
 }
 pub fn run() -> anyhow::Result<()> {
     let icon =
@@ -89,7 +91,7 @@ impl App {
             selected: 0,
             map: 0,
             status,
-            device: "Looking for Orbweaver…".into(),
+            device: "Looking for a Razer keypad…".into(),
             connected: false,
             last_device_refresh: Instant::now(),
             device_model: None,
@@ -101,10 +103,34 @@ impl App {
             learning: None,
             test_text: String::new(),
             delete_confirm: false,
+            wheel_selected: false,
         }
     }
     fn profile(&self) -> &Profile {
         &self.library.profiles[self.library.selected]
+    }
+    /// Layout of the connected keypad; Orbweaver when nothing is connected.
+    fn connected_family(&self) -> Family {
+        self.device_model
+            .map(crate::device::Model::family)
+            .unwrap_or_default()
+    }
+    /// Add a factory profile for `family` and select it.
+    fn new_profile(&mut self, family: Family) {
+        if self.library.profiles.len() >= 128 {
+            self.status = "Profile limit reached (128).".into();
+            return;
+        }
+        self.cancel_learn();
+        let p = Profile {
+            name: format!("Profile {}", self.library.profiles.len() + 1),
+            ..Profile::new(family)
+        };
+        self.library.profiles.push(p);
+        self.library.selected = self.library.profiles.len() - 1;
+        self.map = 0;
+        self.selected = 0;
+        self.wheel_selected = false;
     }
     fn profile_mut(&mut self) -> &mut Profile {
         &mut self.library.profiles[self.library.selected]
@@ -147,7 +173,7 @@ impl App {
                         self.connected = true;
                     }
                     Err(e) => {
-                        self.device = "Orbweaver unavailable".into();
+                        self.device = "Keypad unavailable".into();
                         self.connected = false;
                         self.device_model = None;
                         self.status = if e.contains("not permitted") {
@@ -174,7 +200,7 @@ impl App {
             match event {
                 session::Event::Ready => {
                     self.ready = true;
-                    self.status = "Remapping is active. Only the Orbweaver is captured.".into();
+                    self.status = "Remapping is active. Only the keypad is captured.".into();
                 }
                 session::Event::Keys(keys, map) => {
                     self.raw = keys.into_iter().collect();
@@ -285,21 +311,34 @@ impl App {
             self.cancel_learn();
             self.library.selected = i;
             self.map = 0;
+            self.selected = 0;
+            self.wheel_selected = false;
             self.delete_confirm = false;
             self.apply(false);
         }
         ui.add_space(8.);
+        ui.label(RichText::new("NEW PROFILE FOR").color(MUTED).size(11.));
         ui.horizontal(|ui| {
-            if ui.button("+ New").clicked() && self.library.profiles.len() < 128 {
-                self.cancel_learn();
-                let p = Profile {
-                    name: format!("Profile {}", self.library.profiles.len() + 1),
-                    ..Profile::default()
+            let connected = self.connected_family();
+            for family in [Family::Orbweaver, Family::TartarusV2] {
+                let label = if family == connected && self.connected {
+                    format!("+ {} (connected)", family.name())
+                } else {
+                    format!("+ {}", family.name())
                 };
-                self.library.profiles.push(p);
-                self.library.selected = self.library.profiles.len() - 1;
-                self.map = 0;
+                if ui
+                    .button(label)
+                    .on_hover_text(format!(
+                        "Creates a profile with the {} control layout.",
+                        family.name()
+                    ))
+                    .clicked()
+                {
+                    self.new_profile(family);
+                }
             }
+        });
+        ui.horizontal(|ui| {
             if ui.button("Duplicate").clicked() && self.library.profiles.len() < 128 {
                 self.cancel_learn();
                 let mut p = self.profile().clone();
@@ -313,6 +352,11 @@ impl App {
         ui.add_space(12.);
         ui.label(RichText::new("EDIT PROFILE").color(MUTED).size(11.));
         ui.text_edit_singleline(&mut self.profile_mut().name);
+        ui.label(
+            RichText::new(format!("{} layout", self.profile().family.name()))
+                .size(11.)
+                .color(MUTED),
+        );
         ui.horizontal(|ui| {
             if ui.button("Import").clicked() {
                 self.import();
@@ -379,6 +423,8 @@ impl App {
                     self.library.profiles.push(p);
                     self.library.selected = self.library.profiles.len() - 1;
                     self.map = 0;
+                    self.selected = 0;
+                    self.wheel_selected = false;
                     self.status = "Profile imported. Save & apply to keep it.".into();
                 }
                 Ok(_) => self.status = "Profile limit reached (128).".into(),
@@ -393,7 +439,7 @@ impl App {
         }
         if let Some(path) = rfd::FileDialog::new()
             .add_filter("Orbweaver profile", &["json"])
-            .set_file_name("orbweaver-profile.json")
+            .set_file_name(self.profile().family.export_file_name())
             .save_file()
         {
             let result = serde_json::to_vec_pretty(self.profile())
@@ -405,39 +451,27 @@ impl App {
             };
         }
     }
-    fn tile(&mut self, ui: &mut egui::Ui, i: usize, size: Vec2) {
-        let p = self.profile();
-        let control = &p.controls[i];
-        let active = control.inputs.iter().all(|u| self.raw.contains(u));
-        let rgb = if self.page == Page::Lighting && i < 20 {
-            if p.lighting.effect == Effect::PerKey {
-                p.lighting.colors[i]
-            } else {
-                p.lighting.color
-            }
+    /// Lighting-page color shown on a tile for color slot `led`.
+    fn led_color(&self, led: usize) -> [u8; 3] {
+        let l = &self.profile().lighting;
+        if l.effect == Effect::PerKey {
+            l.colors[led]
         } else {
-            [41, 51, 62]
-        };
-        let selected = self.selected == i;
+            l.color
+        }
+    }
+    fn tile_button(
+        label: String,
+        rgb: [u8; 3],
+        active: bool,
+        selected: bool,
+    ) -> egui::Button<'static> {
         let color = if active {
             ACCENT
         } else {
             Color32::from_rgb(rgb[0] / 3 + 15, rgb[1] / 3 + 15, rgb[2] / 3 + 15)
         };
-        let label = if self.page == Page::Lighting {
-            control.name.clone()
-        } else {
-            if p.maps[self.map].bindings[i] == Action::Default {
-                if i >= 22 {
-                    control.name.clone()
-                } else {
-                    format!("{}\n{}", control.name, model::input_label(&control.inputs))
-                }
-            } else {
-                format!("{}\n{}", control.name, p.maps[self.map].bindings[i].label())
-            }
-        };
-        let button = egui::Button::new(RichText::new(label).size(13.).color(if active {
+        egui::Button::new(RichText::new(label).size(13.).color(if active {
             Color32::BLACK
         } else {
             Color32::WHITE
@@ -450,7 +484,31 @@ impl App {
             } else {
                 Color32::from_rgb(64, 75, 88)
             },
-        ));
+        ))
+    }
+    fn tile(&mut self, ui: &mut egui::Ui, i: usize, size: Vec2) {
+        let p = self.profile();
+        let control = &p.controls[i];
+        let active = control.inputs.iter().all(|u| self.raw.contains(u));
+        let rgb = match p.family.led_for_control(i) {
+            Some(led) if self.page == Page::Lighting => self.led_color(led),
+            _ => [41, 51, 62],
+        };
+        let selected = self.selected == i && !self.wheel_selected;
+        let label = if self.page == Page::Lighting {
+            control.name.clone()
+        } else {
+            if p.maps[self.map].bindings[i] == Action::Default {
+                if i >= p.family.thumb_pad_first() {
+                    control.name.clone()
+                } else {
+                    format!("{}\n{}", control.name, model::input_label(&control.inputs))
+                }
+            } else {
+                format!("{}\n{}", control.name, p.maps[self.map].bindings[i].label())
+            }
+        };
+        let button = Self::tile_button(label, rgb, active, selected);
         if ui
             .add_sized(size, button)
             .on_hover_text(format!(
@@ -460,7 +518,50 @@ impl App {
             .clicked()
         {
             self.selected = i;
+            self.wheel_selected = false;
         }
+    }
+    /// Lighting-only tile for the Tartarus V2 scroll-wheel LED, which has no key mapping.
+    fn wheel_tile(&mut self, ui: &mut egui::Ui, led: usize, size: Vec2) {
+        let button = Self::tile_button(
+            "Wheel".into(),
+            self.led_color(led),
+            false,
+            self.wheel_selected,
+        );
+        if ui
+            .add_sized(size, button)
+            .on_hover_text(
+                "Scroll-wheel LED. The wheel keeps its factory scrolling and is not remappable.",
+            )
+            .clicked()
+        {
+            self.wheel_selected = true;
+        }
+    }
+    fn thumb_pad(&mut self, ui: &mut egui::Ui) {
+        let first = self.profile().family.thumb_pad_first();
+        // Directions are stored N, NE, E, SE, S, SW, W, NW.
+        let at = |d: usize| first + d;
+        ui.vertical(|ui| {
+            ui.label(RichText::new("8-WAY THUMB PAD").size(11.).color(MUTED));
+            egui::Grid::new("pad").spacing([5., 5.]).show(ui, |ui| {
+                for row in [
+                    [at(7), at(0), at(1)],
+                    [at(6), usize::MAX, at(2)],
+                    [at(5), at(4), at(3)],
+                ] {
+                    for i in row {
+                        if i == usize::MAX {
+                            ui.add_sized([58., 32.], egui::Label::new("+"));
+                        } else {
+                            self.tile(ui, i, Vec2::new(58., 32.));
+                        }
+                    }
+                    ui.end_row();
+                }
+            });
+        });
     }
     fn keypad(&mut self, ui: &mut egui::Ui) {
         ui.label(
@@ -473,6 +574,12 @@ impl App {
             .strong(),
         );
         ui.add_space(14.);
+        match self.profile().family {
+            Family::Orbweaver => self.orbweaver_keypad(ui),
+            Family::TartarusV2 => self.tartarus_keypad(ui),
+        }
+    }
+    fn orbweaver_keypad(&mut self, ui: &mut egui::Ui) {
         egui::Grid::new("keys").spacing([10., 10.]).show(ui, |ui| {
             for row in 0..4 {
                 for col in 0..5 {
@@ -490,21 +597,7 @@ impl App {
                     self.tile(ui, 21, Vec2::new(122., 40.));
                 });
                 ui.add_space(22.);
-                ui.vertical(|ui| {
-                    ui.label(RichText::new("8-WAY THUMB PAD").size(11.).color(MUTED));
-                    egui::Grid::new("pad").spacing([5., 5.]).show(ui, |ui| {
-                        for row in [[29, 22, 23], [28, usize::MAX, 24], [27, 26, 25]] {
-                            for i in row {
-                                if i == usize::MAX {
-                                    ui.add_sized([58., 32.], egui::Label::new("+"));
-                                } else {
-                                    self.tile(ui, i, Vec2::new(58., 32.));
-                                }
-                            }
-                            ui.end_row();
-                        }
-                    });
-                });
+                self.thumb_pad(ui);
             });
             ui.add_space(14.);
             ui.label(
@@ -514,9 +607,77 @@ impl App {
             );
         }
     }
+    /// Tartarus V2: 19 keys in rows of 5, 5, 5, 4; key 20 and the thumb button on the thumb
+    /// module; eight pad directions. The scroll wheel only appears as an LED.
+    fn tartarus_keypad(&mut self, ui: &mut egui::Ui) {
+        let wheel = self.profile().family.wheel_led();
+        ui.horizontal_top(|ui| {
+            egui::Grid::new("keys").spacing([10., 10.]).show(ui, |ui| {
+                for row in 0..4 {
+                    for col in 0..5 {
+                        let i = row * 5 + col;
+                        if i < 19 {
+                            self.tile(ui, i, Vec2::new(72., 50.));
+                        }
+                    }
+                    ui.end_row();
+                }
+            });
+            if self.page == Page::Lighting
+                && let Some(led) = wheel
+            {
+                ui.add_space(12.);
+                ui.vertical(|ui| {
+                    ui.label(RichText::new("SCROLL WHEEL").size(11.).color(MUTED));
+                    self.wheel_tile(ui, led, Vec2::new(72., 50.));
+                });
+            }
+        });
+        ui.add_space(20.);
+        ui.horizontal_top(|ui| {
+            ui.vertical(|ui| {
+                ui.label(RichText::new("THUMB MODULE").size(11.).color(MUTED));
+                self.tile(ui, 19, Vec2::new(122., 40.));
+                if self.page == Page::Keys {
+                    self.tile(ui, 20, Vec2::new(122., 40.));
+                }
+            });
+            if self.page == Page::Keys {
+                ui.add_space(22.);
+                self.thumb_pad(ui);
+            }
+        });
+        ui.add_space(14.);
+        ui.label(
+            RichText::new(if self.page == Page::Keys {
+                "Default diagonals combine their two direction keys. The scroll wheel keeps its factory scrolling."
+            } else {
+                "Key 20 is the thumb paddle. The thumb button and pad have no LEDs."
+            })
+            .size(12.)
+            .color(MUTED),
+        );
+    }
     fn inspector(&mut self, ui: &mut egui::Ui) {
         let i = self.selected;
         let map = self.map;
+        let family = self.profile().family;
+        if self.page == Page::Lighting && self.wheel_selected {
+            if let Some(led) = family.wheel_led() {
+                ui.label(RichText::new("SCROLL WHEEL LED").color(ACCENT).size(12.));
+                ui.add_space(8.);
+                if self.profile().lighting.effect == Effect::PerKey {
+                    ui.color_edit_button_srgb(&mut self.profile_mut().lighting.colors[led]);
+                } else {
+                    ui.label(
+                        RichText::new("Choose Per-key colors to paint the wheel separately.")
+                            .color(MUTED),
+                    );
+                }
+                return;
+            }
+            self.wheel_selected = false;
+        }
         ui.label(
             RichText::new(format!("CONTROL {}", self.profile().controls[i].name))
                 .color(ACCENT)
@@ -524,13 +685,13 @@ impl App {
         );
         ui.add_space(8.);
         if self.page == Page::Lighting {
-            if i >= 20 {
+            let Some(led) = family.led_for_control(i) else {
                 ui.label("Thumb controls have no RGB key LEDs.");
                 return;
-            }
+            };
             ui.label("Key color");
             if self.profile().lighting.effect == Effect::PerKey {
-                ui.color_edit_button_srgb(&mut self.profile_mut().lighting.colors[i]);
+                ui.color_edit_button_srgb(&mut self.profile_mut().lighting.colors[led]);
             } else {
                 ui.label(
                     RichText::new("Choose Per-key colors to paint this key separately.")
@@ -730,13 +891,13 @@ impl App {
         ui.add_space(12.);
     }
     fn device_page(&mut self, ui: &mut egui::Ui) {
-        ui.heading("Your Orbweaver");
+        ui.heading("Your keypad");
         ui.label(&self.device);
-        ui.label("Shared key profiles: Orbweaver 1532:0113 and Orbweaver Chroma 1532:0207");
+        ui.label("Supported: Orbweaver 1532:0113 and Orbweaver Chroma 1532:0207 (shared profile layout), Tartarus V2 1532:022b (its own profile layout).");
         ui.add_space(20.);
         ui.heading("macOS access");
         ui.label(if native::trusted() {
-            "✓ Accessibility is granted."
+            "Accessibility is granted."
         } else {
             "Accessibility is needed to send your mapped keys to other apps."
         });
@@ -749,7 +910,7 @@ impl App {
                 .spawn();
         }
         ui.add_space(12.);
-        ui.label("Input Monitoring allows direct access to the Orbweaver's HID interfaces.");
+        ui.label("Input Monitoring allows direct access to the keypad's HID interfaces.");
         if ui.button("Set up Input Monitoring").clicked() {
             let _ = crate::permissions::status(true);
             let _ = std::process::Command::new("/usr/bin/open")
@@ -764,7 +925,7 @@ impl App {
         }
         ui.add_space(20.);
         ui.heading("Try your mappings");
-        ui.label("Click below, then press your Orbweaver. This text stays in memory and is cleared when you quit.");
+        ui.label("Click below, then press your keypad. This text stays in memory and is cleared when you quit.");
         ui.add(
             egui::TextEdit::multiline(&mut self.test_text)
                 .desired_rows(5)
@@ -875,6 +1036,29 @@ impl eframe::App for App {
                         ui.label("This Orbweaver has no Chroma RGB lighting. Your saved RGB colors are preserved for when you reconnect the Chroma.");
                         ui.label("Use the same profile on either device. Original-model backlight controls are not implemented yet.");
                         return;
+                    }
+                    if let Some(model) = self.device_model
+                        && model.family() != self.profile().family
+                    {
+                        let wanted = model.family();
+                        ui.horizontal_wrapped(|ui| {
+                            ui.label(
+                                RichText::new(format!(
+                                    "This profile uses the {} layout. The connected {} needs a {} profile for its own keys and LEDs.",
+                                    self.profile().family.name(),
+                                    model.name(),
+                                    wanted.name()
+                                ))
+                                .color(Color32::from_rgb(242, 201, 76)),
+                            );
+                            if ui
+                                .button(format!("Create {} profile", wanted.name()))
+                                .clicked()
+                            {
+                                self.new_profile(wanted);
+                            }
+                        });
+                        ui.add_space(10.);
                     }
                     if self.page == Page::Keys {
                         ui.horizontal(|ui| {

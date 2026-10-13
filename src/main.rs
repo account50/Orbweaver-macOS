@@ -12,7 +12,7 @@ use clap::{Parser, Subcommand};
 #[derive(Parser)]
 #[command(
     version,
-    about = "Native control for Razer Orbweaver (1532:0113) and Chroma (1532:0207)"
+    about = "Native control for Razer Orbweaver (1532:0113), Orbweaver Chroma (1532:0207), and Tartarus V2 (1532:022b)"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -33,7 +33,7 @@ enum Command {
         #[arg(long)]
         request: bool,
     },
-    /// List only connected Orbweaver HID interfaces; does not open them.
+    /// List only connected supported-keypad HID interfaces; does not open them.
     Devices,
     /// Open shared handles and inspect report descriptors without changing settings.
     Inspect,
@@ -51,7 +51,7 @@ enum Command {
         /// Annotate a physical-control trial, e.g. key_01 or thumb_north.
         #[arg(long)]
         label: Option<String>,
-        /// macOS: temporarily seize only the selected Orbweaver interfaces.
+        /// macOS: temporarily seize only the selected keypad interfaces.
         #[arg(long)]
         exclusive: bool,
     },
@@ -89,7 +89,8 @@ fn main() -> Result<()> {
             println!("{}", serde_json::to_string_pretty(&devices)?);
             anyhow::ensure!(
                 !devices.is_empty(),
-                "No supported Orbweaver (1532:0113 or 1532:0207) is connected"
+                "No supported keypad ({}) is connected",
+                device::SUPPORTED_LIST
             );
             if inspect {
                 anyhow::ensure!(
@@ -117,13 +118,14 @@ fn main() -> Result<()> {
             },
         )?,
         Command::Probe { interface } => {
+            let model = device::connected_model(&api)?;
             anyhow::ensure!(
-                device::connected_model(&api)?.supports_rgb(),
-                "Firmware probing is currently verified only for Chroma; original Orbweaver key mapping does not require it"
+                model.supports_rgb(),
+                "Firmware probing is verified only for RGB models; original Orbweaver key mapping does not require it"
             );
             let info = device::select(&api, interface)?;
             let handle = info.open_device(&api)?;
-            let firmware = protocol::query_firmware(&handle)?;
+            let firmware = protocol::query_firmware_for(&handle, model)?;
             println!(
                 "{}",
                 serde_json::to_string_pretty(

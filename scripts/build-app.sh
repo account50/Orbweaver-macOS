@@ -23,5 +23,13 @@ cat > "$app_dir/Contents/Info.plist" <<'PLIST'
 <key>NSInputMonitoringUsageDescription</key><string>Orbweaver reads only your Razer keypad to apply your key mappings.</string>
 </dict></plist>
 PLIST
-codesign --force --sign - "$app_dir"
+identity="${ORBWEAVER_SIGN_IDENTITY:-Orbweaver Local Signing}"
+if security find-identity -v -p codesigning | grep -q "\"$identity\""; then
+    # A stable local identity keeps macOS privacy grants valid across rebuilds.
+    codesign --force --sign "$identity" --identifier local.orbweaver.app "$app_dir"
+    printf 'Signed with "%s".\n' "$identity"
+else
+    codesign --force --sign - "$app_dir"
+    printf 'Signed ad hoc; run scripts/make-signing-identity.sh once to keep privacy grants across rebuilds.\n'
+fi
 printf 'Built %s\n' "$app_dir"

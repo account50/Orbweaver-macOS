@@ -1,4 +1,4 @@
-//! Private, short-lived capture helper. It can only seize the two known Orbweaver keyboards.
+//! Private, short-lived capture helper. It can only seize the keyboard interfaces of a supported keypad.
 use super::{engine::Engine, model::Profile, native::Emitter};
 use crate::{
     device,
@@ -105,7 +105,7 @@ pub fn helper(path: &Path) -> Result<()> {
             let layout = input::layout(&descriptor[..n]);
             ensure!(
                 matches!(layout, Layout::BootKeyboard | Layout::ExtendedKeyboard),
-                "unknown Orbweaver descriptor; refusing capture"
+                "unknown keypad descriptor; refusing capture"
             );
             keyboards.push(Keyboard {
                 handle,
@@ -144,7 +144,7 @@ pub fn helper(path: &Path) -> Result<()> {
                         device::matching(&api)
                             .iter()
                             .any(|d| d.path().to_string_lossy() == k.path),
-                        "Orbweaver disconnected"
+                        "Keypad disconnected"
                     );
                 }
                 refresh = Instant::now();
@@ -245,7 +245,7 @@ fn client(profile: Profile, commands: Receiver<Control>, events: &Sender<Event>)
         }
         if let Some(status) = child.try_wait()? {
             anyhow::bail!(
-                "Capture helper did not start ({status}). Administrator access is required to suppress the Orbweaver's factory keystrokes."
+                "Capture helper did not start ({status}). Administrator access is required to suppress the keypad's factory keystrokes."
             );
         }
         ensure!(
@@ -360,7 +360,7 @@ fn client(profile: Profile, commands: Receiver<Control>, events: &Sender<Event>)
             emitter.tick()?;
             ensure!(
                 ready || last_message.elapsed() < Duration::from_secs(10),
-                "Helper did not acquire the Orbweaver"
+                "Helper did not acquire the keypad"
             );
             thread::sleep(Duration::from_millis(2));
         }

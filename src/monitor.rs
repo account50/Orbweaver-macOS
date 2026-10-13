@@ -87,9 +87,9 @@ pub fn run(mut api: HidApi, options: Options<'_>) -> Result<()> {
         start,
         label: options.label.map(str::to_owned),
     };
-    sink.event("session",json!({"vendor_id":device::VID,"supported_product_ids":[device::ORIGINAL_PID,device::CHROMA_PID],"started_unix_ms":SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis(),"exclusive":options.exclusive,"seconds":options.seconds}))?;
+    sink.event("session",json!({"vendor_id":device::VID,"supported_product_ids":device::SUPPORTED_PIDS,"started_unix_ms":SystemTime::now().duration_since(UNIX_EPOCH)?.as_millis(),"exclusive":options.exclusive,"seconds":options.seconds}))?;
     eprintln!(
-        "Monitoring Orbweaver only. Ctrl-C stops. {}",
+        "Monitoring the supported Razer keypad only. Ctrl-C stops. {}",
         if options.exclusive {
             "Requesting exclusive access. Wait for capture_ready before pressing keys; input may still reach apps if access fails."
         } else {
@@ -191,9 +191,7 @@ pub fn run(mut api: HidApi, options: Options<'_>) -> Result<()> {
                         "capture_failed",
                         json!({"reason":"incomplete composite device; all handles released"}),
                     )?;
-                    anyhow::bail!(
-                        "expected all three Orbweaver interfaces before exclusive capture"
-                    );
+                    anyhow::bail!("expected all three keypad interfaces before exclusive capture");
                 }
             }
             let current_paths: BTreeSet<_> = open.keys().cloned().collect();
@@ -203,7 +201,7 @@ pub fn run(mut api: HidApi, options: Options<'_>) -> Result<()> {
                     json!({"interfaces":open.values().map(|h| h.number).collect::<Vec<_>>()}),
                 )?;
                 eprintln!(
-                    "Capture ready: selected Orbweaver interfaces opened exclusively. Press and release the test controls now."
+                    "Capture ready: selected keypad interfaces opened exclusively. Press and release the test controls now."
                 );
             }
             ready_paths = current_paths;
