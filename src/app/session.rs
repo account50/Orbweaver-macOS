@@ -5,6 +5,7 @@ use crate::{
     input::{self, Decoder, Layout},
 };
 use anyhow::{Context, Result, ensure};
+use eframe::egui;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::BTreeSet,
@@ -41,10 +42,23 @@ pub struct Session {
     pub rx: Receiver<Event>,
     worker: Option<thread::JoinHandle<()>>,
 }
+/// Event channel to the GUI. Every event wakes the UI, so it redraws on demand instead of polling.
+struct Events {
+    tx: Sender<Event>,
+    ctx: egui::Context,
+}
+impl Events {
+    fn send(&self, event: Event) -> std::result::Result<(), mpsc::SendError<Event>> {
+        self.tx.send(event)?;
+        self.ctx.request_repaint();
+        Ok(())
+    }
+}
 impl Session {
-    pub fn start(profile: Profile) -> Self {
+    pub fn start(profile: Profile, ctx: egui::Context) -> Self {
         let (tx, commands) = mpsc::channel();
         let (events, rx) = mpsc::channel();
+        let events = Events { tx: events, ctx };
         let worker = thread::spawn(move || {
             let result = client(profile, commands, &events);
             let message = match result {
@@ -184,7 +198,7 @@ pub fn helper(path: &Path) -> Result<()> {
 fn quote(s: &str) -> String {
     format!("'{}'", s.replace('\'', "'\\''"))
 }
-fn client(profile: Profile, commands: Receiver<Control>, events: &Sender<Event>) -> Result<()> {
+fn client(profile: Profile, commands: Receiver<Control>, events: &Events) -> Result<()> {
     ensure!(
         super::native::trusted(),
         "Enable Orbweaver in System Settings → Privacy & Security → Accessibility, then start again."

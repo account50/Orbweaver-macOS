@@ -20,6 +20,10 @@ enum Page {
 struct App {
     library: Library,
     saved: Library,
+    /// `library` differs from `saved`; maintained at edit time so the status bar need not compare per frame.
+    dirty: bool,
+    /// Handed to worker threads so they can wake the UI when they have news.
+    ctx: egui::Context,
     load_error: bool,
     page: Page,
     selected: usize,
@@ -42,7 +46,7 @@ struct App {
 }
 pub fn run() -> anyhow::Result<()> {
     let icon =
-        eframe::icon_data::from_png_bytes(include_bytes!("../../assets/orbweaver-icon.png"))?;
+        eframe::icon_data::from_png_bytes(include_bytes!("../../assets/orbweaver-icon-256.png"))?;
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_icon(icon)
@@ -86,6 +90,8 @@ impl App {
         Self {
             saved: library.clone(),
             library,
+            dirty: false,
+            ctx: cc.egui_ctx.clone(),
             load_error,
             page: Page::Keys,
             selected: 0,
@@ -95,7 +101,7 @@ impl App {
             connected: false,
             last_device_refresh: Instant::now(),
             device_model: None,
-            lights: lighting::Worker::new(),
+            lights: lighting::Worker::new(cc.egui_ctx.clone()),
             session: None,
             ready: false,
             raw: BTreeSet::new(),
@@ -128,12 +134,17 @@ impl App {
         };
         self.library.profiles.push(p);
         self.library.selected = self.library.profiles.len() - 1;
+        self.mark_edited();
         self.map = 0;
         self.selected = 0;
         self.wheel_selected = false;
     }
     fn profile_mut(&mut self) -> &mut Profile {
         &mut self.library.profiles[self.library.selected]
+    }
+    /// Call after any change to `library`. Compares once here so reverted edits still read as saved.
+    fn mark_edited(&mut self) {
+        self.dirty = self.library != self.saved;
     }
     fn apply(&mut self, save: bool) {
         if let Err(e) = self.library.validate() {
@@ -146,6 +157,7 @@ impl App {
                 return;
             }
             self.saved = self.library.clone();
+            self.dirty = false;
         }
         if let Some(session) = &self.session {
             let _ = session
@@ -212,6 +224,7 @@ impl App {
                             && keys.iter().all(|u| model::key_for_usage(*u).is_some())
                         {
                             self.profile_mut().controls[i].inputs = keys;
+                            self.mark_edited();
                             self.status =
                                 "Input learned. Save & apply to use the new source.".into();
                         } else {
@@ -240,7 +253,10 @@ impl App {
             self.status = "Allow Orbweaver in Accessibility, then click Start remapping.".into();
             return;
         }
-        self.session = Some(session::Session::start(self.profile().clone()));
+        self.session = Some(session::Session::start(
+            self.profile().clone(),
+            self.ctx.clone(),
+        ));
         self.status = "Starting capture. macOS may ask for administrator access…".into();
     }
     fn header(&mut self, ui: &mut egui::Ui) {
@@ -310,6 +326,7 @@ impl App {
         if let Some(i) = switch {
             self.cancel_learn();
             self.library.selected = i;
+            self.mark_edited();
             self.map = 0;
             self.selected = 0;
             self.wheel_selected = false;
@@ -345,13 +362,19 @@ impl App {
                 p.name = format!("{} copy", p.name);
                 self.library.profiles.push(p);
                 self.library.selected = self.library.profiles.len() - 1;
+                self.mark_edited();
             }
         });
         ui.add_space(16.);
         ui.separator();
         ui.add_space(12.);
         ui.label(RichText::new("EDIT PROFILE").color(MUTED).size(11.));
-        ui.text_edit_singleline(&mut self.profile_mut().name);
+        if ui
+            .text_edit_singleline(&mut self.profile_mut().name)
+            .changed()
+        {
+            self.mark_edited();
+        }
         ui.label(
             RichText::new(format!("{} layout", self.profile().family.name()))
                 .size(11.)
@@ -381,6 +404,7 @@ impl App {
                     self.cancel_learn();
                     self.library.profiles.remove(self.library.selected);
                     self.library.selected = 0;
+                    self.mark_edited();
                     self.delete_confirm = false;
                     self.apply(false);
                 }
@@ -422,6 +446,7 @@ impl App {
                     self.cancel_learn();
                     self.library.profiles.push(p);
                     self.library.selected = self.library.profiles.len() - 1;
+                    self.mark_edited();
                     self.map = 0;
                     self.selected = 0;
                     self.wheel_selected = false;
@@ -667,7 +692,12 @@ impl App {
                 ui.label(RichText::new("SCROLL WHEEL LED").color(ACCENT).size(12.));
                 ui.add_space(8.);
                 if self.profile().lighting.effect == Effect::PerKey {
-                    ui.color_edit_button_srgb(&mut self.profile_mut().lighting.colors[led]);
+                    if ui
+                        .color_edit_button_srgb(&mut self.profile_mut().lighting.colors[led])
+                        .changed()
+                    {
+                        self.mark_edited();
+                    }
                 } else {
                     ui.label(
                         RichText::new("Choose Per-key colors to paint the wheel separately.")
@@ -691,7 +721,12 @@ impl App {
             };
             ui.label("Key color");
             if self.profile().lighting.effect == Effect::PerKey {
-                ui.color_edit_button_srgb(&mut self.profile_mut().lighting.colors[led]);
+                if ui
+                    .color_edit_button_srgb(&mut self.profile_mut().lighting.colors[led])
+                    .changed()
+                {
+                    self.mark_edited();
+                }
             } else {
                 ui.label(
                     RichText::new("Choose Per-key colors to paint this key separately.")
@@ -758,21 +793,25 @@ impl App {
                 },
                 _ => Action::Default,
             };
+            self.mark_edited();
         }
+        let mut changed = false;
         match &mut self.profile_mut().maps[map].bindings[i] {
             Action::SpamKey { chord, interval_ms } => {
                 ui.label("Key to spam");
-                ui.text_edit_singleline(chord);
+                changed |= ui.text_edit_singleline(chord).changed();
                 ui.label(
                     RichText::new("Examples: 1, space, f5, shift+tab")
                         .size(12.)
                         .color(MUTED),
                 );
-                ui.add(
-                    egui::DragValue::new(interval_ms)
-                        .range(20..=5000)
-                        .suffix(" ms between presses"),
-                );
+                changed |= ui
+                    .add(
+                        egui::DragValue::new(interval_ms)
+                            .range(20..=5000)
+                            .suffix(" ms between presses"),
+                    )
+                    .changed();
                 ui.label(
                     RichText::new("Repeatedly presses and releases while held. Stops on release.")
                         .size(12.)
@@ -780,7 +819,7 @@ impl App {
                 );
             }
             Action::Key { chord } => {
-                ui.text_edit_singleline(chord);
+                changed |= ui.text_edit_singleline(chord).changed();
                 ui.label(
                     RichText::new("Examples: command+c, shift+tab, f5, space")
                         .size(12.)
@@ -788,31 +827,41 @@ impl App {
                 );
             }
             Action::Sequence { keys, interval_ms } => {
-                ui.add(
-                    egui::TextEdit::multiline(keys)
-                        .desired_rows(3)
-                        .desired_width(250.),
-                );
+                changed |= ui
+                    .add(
+                        egui::TextEdit::multiline(keys)
+                            .desired_rows(3)
+                            .desired_width(250.),
+                    )
+                    .changed();
                 ui.label(
                     RichText::new("Comma-separated shortcuts, played once per press.")
                         .size(12.)
                         .color(MUTED),
                 );
-                ui.add(
-                    egui::DragValue::new(interval_ms)
-                        .range(20..=5000)
-                        .suffix(" ms between steps"),
-                );
+                changed |= ui
+                    .add(
+                        egui::DragValue::new(interval_ms)
+                            .range(20..=5000)
+                            .suffix(" ms between steps"),
+                    )
+                    .changed();
             }
             Action::Layer { map, momentary } => {
-                egui::ComboBox::from_id_salt("target-map")
+                changed |= egui::ComboBox::from_id_salt("target-map")
                     .selected_text(format!("Keymap {}", *map + 1))
                     .show_ui(ui, |ui| {
+                        let mut picked = false;
                         for n in 0..8 {
-                            ui.selectable_value(map, n, format!("Keymap {}", n + 1));
+                            picked |= ui
+                                .selectable_value(map, n, format!("Keymap {}", n + 1))
+                                .changed();
                         }
-                    });
-                ui.checkbox(momentary, "Only while held");
+                        picked
+                    })
+                    .inner
+                    .unwrap_or(false);
+                changed |= ui.checkbox(momentary, "Only while held").changed();
             }
             Action::Default => {
                 ui.label(
@@ -824,6 +873,9 @@ impl App {
             Action::Disabled => {
                 ui.label("This control will produce no output.");
             }
+        }
+        if changed {
+            self.mark_edited();
         }
         ui.add_space(20.);
         ui.separator();
@@ -856,11 +908,13 @@ impl App {
         egui::CollapsingHeader::new("Supported key names").show(ui,|ui|{ui.label(RichText::new("a–z, 0–9, f1–f15, command, option, shift, control, enter, escape, space, tab, backspace, delete, caps_lock, up, down, left, right, home, end, page_up, page_down, grave, minus, equal, comma, period, slash, backslash, quote, semicolon, left_bracket, right_bracket").size(12.));});
     }
     fn lighting_controls(&mut self, ui: &mut egui::Ui) {
+        let mut changed = false;
         let l = &mut self.profile_mut().lighting;
         ui.horizontal(|ui| {
-            egui::ComboBox::from_id_salt("effect")
+            changed |= egui::ComboBox::from_id_salt("effect")
                 .selected_text(l.effect.label())
                 .show_ui(ui, |ui| {
+                    let mut picked = false;
                     for e in [
                         Effect::Static,
                         Effect::PerKey,
@@ -869,24 +923,33 @@ impl App {
                         Effect::Wave,
                         Effect::Off,
                     ] {
-                        ui.selectable_value(&mut l.effect, e, e.label());
+                        picked |= ui.selectable_value(&mut l.effect, e, e.label()).changed();
                     }
-                });
+                    picked
+                })
+                .inner
+                .unwrap_or(false);
             if matches!(l.effect, Effect::Static | Effect::Breathing) {
-                ui.color_edit_button_srgb(&mut l.color);
+                changed |= ui.color_edit_button_srgb(&mut l.color).changed();
             }
             if l.effect == Effect::Wave {
-                ui.checkbox(&mut l.reverse, "Reverse");
+                changed |= ui.checkbox(&mut l.reverse, "Reverse").changed();
             }
         });
-        ui.add(egui::Slider::new(&mut l.brightness, 0..=100).text("Brightness %"));
+        changed |= ui
+            .add(egui::Slider::new(&mut l.brightness, 0..=100).text("Brightness %"))
+            .changed();
         if l.effect == Effect::PerKey {
             ui.horizontal(|ui| {
-                ui.color_edit_button_srgb(&mut l.color);
+                changed |= ui.color_edit_button_srgb(&mut l.color).changed();
                 if ui.button("Fill all keys").clicked() {
                     l.colors.fill(l.color);
+                    changed = true;
                 }
             });
+        }
+        if changed {
+            self.mark_edited();
         }
         ui.add_space(12.);
     }
@@ -951,11 +1014,9 @@ impl eframe::App for App {
             let _ = self.lights.tx.send(lighting::Request::Inspect);
             self.last_device_refresh = Instant::now();
         }
-        ctx.request_repaint_after(Duration::from_millis(if self.session.is_some() {
-            33
-        } else {
-            500
-        }));
+        // Worker threads wake the UI as soon as they have news; this only keeps the device
+        // check above running while nothing else happens.
+        ctx.request_repaint_after(Duration::from_millis(500));
     }
     fn ui(&mut self, ui: &mut egui::Ui, _: &mut eframe::Frame) {
         egui::Panel::top("header")
@@ -976,7 +1037,7 @@ impl eframe::App for App {
                     ui.vertical(|ui| {
                         ui.label(RichText::new(&self.status).size(12.));
                         ui.label(
-                            RichText::new(if self.library != self.saved {
+                            RichText::new(if self.dirty {
                                 "Unsaved changes"
                             } else {
                                 "All profile changes saved"
